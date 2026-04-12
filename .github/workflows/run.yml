@@ -1,0 +1,46 @@
+name: Scraper Automation
+
+on:
+  schedule:
+    - cron: '58 * * * *'   # HH:28 IST (converted to UTC)
+  workflow_dispatch:
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Get your repo code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Setup Python 3.10
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # 3. Install dependencies
+      - name: Install requirements
+        run: pip install -r requirements.txt
+
+      # 4. Run NEW videos first
+      - name: Run New Videos Script
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: python New_vedios.py
+
+      # 5. Run OLD videos second
+      - name: Run Old Videos Script
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: python Old_vedios.py
+
+      # 6. Save everything back to GitHub
+      - name: Commit and Push
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add .
+          git commit -m "auto update scraper data" || echo "no changes"
+          git push
