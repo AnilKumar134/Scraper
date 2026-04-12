@@ -20,10 +20,13 @@ MAX_DURATION_SEC = 120
 SEARCH_QUERIES = ["#shorts", " ", "#short"]
 MAX_VIDEOS = 240
 
-OLD_DATA_FOLDER = os.path.join(BASE_DIR, "old_data")
+# ⚠️ KEEP OLD_VEDIOS SAFE (DO NOT TOUCH THIS)
+OLD_VEDIOS_FOLDER = os.path.join(BASE_DIR, "old_vedios")
+
 MASTER_VIDEO_FILE = os.path.join(BASE_DIR, "master_video_ids.csv")
 
-os.makedirs(OLD_DATA_FOLDER, exist_ok=True)
+# Ensure only safe folder exists (NOT old_vedios)
+os.makedirs(BASE_DIR, exist_ok=True)
 
 # ===========================================
 
@@ -50,9 +53,10 @@ def convert_to_ist(utc_time_str):
     return utc_dt.astimezone(IST).strftime("%Y-%m-%d %I:%M:%S %p")
 
 
+# ✅ FIXED: SAVE IN GITHUB ROOT (NOT old_data)
 def generate_filename():
     ts = datetime.now(IST).strftime("%Y-%m-%d_%I-%M-%S_%p")
-    return os.path.join(OLD_DATA_FOLDER, f"youtube_data_{ts}.csv")
+    return os.path.join(BASE_DIR, f"youtube_data_{ts}.csv")
 
 
 def get_published_after(hours_back):
@@ -272,6 +276,7 @@ def run_scraper():
     results = prepare_results(video_items, channel_map)
     print(f"✅ Final videos: {len(results)}")
 
+    # SAVE IN GITHUB ROOT
     save_to_csv(results, generate_filename())
 
     master = load_master()
