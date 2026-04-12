@@ -2,7 +2,7 @@ name: Scraper Automation
 
 on:
   schedule:
-    - cron: '55 * * * *'   # HH:26 IST (converted to UTC)
+    - cron: '56 * * * *'   # HH:26 IST (converted to UTC)
   workflow_dispatch:
 
 jobs:
@@ -30,13 +30,17 @@ jobs:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: python New_vedios.py
 
-      # 5. Run OLD videos second
+      # ⏳ 5. Wait 10 seconds before running next script
+      - name: Wait 10 seconds
+        run: sleep 10
+
+      # 6. Run OLD videos second
       - name: Run Old Videos Script
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: python Old_vedios.py
 
-      # 6. Save everything back to GitHub
+      # 7. Save everything back to GitHub
       - name: Commit and Push
         run: |
           git config --global user.name "github-actions"
