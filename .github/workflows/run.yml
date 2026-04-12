@@ -2,7 +2,7 @@ name: Scraper Automation
 
 on:
   schedule:
-    - cron: '56 * * * *'   # HH:26 IST (converted to UTC)
+    - cron: '55 * * * *'   # HH:26 IST (converted to UTC)
   workflow_dispatch:
 
 jobs:
