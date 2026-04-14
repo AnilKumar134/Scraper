@@ -11,7 +11,6 @@ import re
 # ==========================
 
 API_KEY = os.environ["YOUTUBE_API_KEY"]
-
 BASE_URL = "https://www.googleapis.com/youtube/v3"
 
 BASE_DIR = os.getcwd()
@@ -20,7 +19,6 @@ MASTER_FILE = os.path.join(BASE_DIR, "master_video_ids.csv")
 
 IST = pytz.timezone("Asia/Kolkata")
 
-# Ensure folder exists
 os.makedirs(OLD_DATA_FOLDER, exist_ok=True)
 
 
@@ -40,29 +38,26 @@ def generate_filename():
 
 
 # ==========================
-# CLEAN VIDEO ID (🔥 FIX HERE)
+# CLEAN VIDEO ID (FIXED)
 # ==========================
 def clean_video_id(raw_id):
     if not raw_id:
         return ""
 
-    vid = raw_id.strip()
+    vid = str(raw_id).strip()
 
-    # Remove Excel formula prefix "="
-    if vid.startswith("="):
-        vid = vid.lstrip("=")
-
-    # Remove quotes Excel might add
-    vid = vid.strip('"').strip("'")
+    # Remove Excel formula patterns: ="abc", =abc, "=-abc"
+    vid = re.sub(r'^="?=?', '', vid)   # removes leading = or ="
+    vid = vid.replace('"', '').replace("'", '').strip()
 
     return vid
 
 
 # ==========================
-# VALIDATION (STRONG)
+# VALIDATION (STRICT)
 # ==========================
 def is_valid_video_id(vid):
-    return bool(re.match(r"^[A-Za-z0-9_-]{11}$", vid))
+    return bool(re.fullmatch(r"[A-Za-z0-9_-]{11}", vid))
 
 
 # ==========================
@@ -100,13 +95,13 @@ def load_master():
     save_master(clean_rows)
 
     print(f"🧹 Removed invalid rows: {removed_count}")
-    print(f"🛠 Fixed Excel-corrupted IDs: {fixed_count}")
+    print(f"🛠 Fixed corrupted Excel IDs: {fixed_count}")
 
     return clean_rows
 
 
 # ==========================
-# SAVE MASTER CSV (SAFE WRITE)
+# SAVE MASTER CSV
 # ==========================
 def save_master(rows):
     temp_file = MASTER_FILE + ".tmp"
@@ -196,12 +191,12 @@ def prepare_data(items, channel_map):
     now_time = get_current_time_ist()
 
     for item in items:
-        s = item.get("snippet", {})
-        st = item.get("statistics", {})
-
         vid = item.get("id")
         if not vid:
             continue
+
+        s = item.get("snippet", {})
+        st = item.get("statistics", {})
 
         data.append({
             "videoId": vid,
@@ -261,18 +256,17 @@ def run_scraper():
         print("⚠️ API returned no valid data")
         return
 
-    channel_ids = list(set([
+    channel_ids = list(set(
         item.get("snippet", {}).get("channelId")
         for item in items
         if item.get("snippet", {}).get("channelId")
-    ]))
+    ))
 
     channel_map = fetch_channel_details(channel_ids)
 
     data = prepare_data(items, channel_map)
     save_csv(data)
 
-    # reset NOW flags
     for r in rows:
         if r.get("last_fetched_time") == "NOW":
             r["last_fetched_time"] = ""
