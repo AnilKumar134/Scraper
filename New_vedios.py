@@ -17,7 +17,7 @@ IST = pytz.timezone("Asia/Kolkata")
 
 HOURS_BACK = 1
 MAX_DURATION_SEC = 120
-SEARCH_QUERIES = ["#shorts", " ", "#short"]
+SEARCH_QUERIES = ["#shorts", "#short"]
 MAX_VIDEOS = 240
 
 # ⚠️ KEEP OLD_VEDIOS SAFE (DO NOT TOUCH THIS)
