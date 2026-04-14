@@ -17,19 +17,17 @@ IST = pytz.timezone("Asia/Kolkata")
 
 HOURS_BACK = 1
 MAX_DURATION_SEC = 120
+
 SEARCH_QUERIES = ["#shorts", "#short"]
 MAX_VIDEOS = 240
 
-# ⚠️ KEEP OLD_VEDIOS SAFE (DO NOT TOUCH THIS)
-OLD_VEDIOS_FOLDER = os.path.join(BASE_DIR, "old_vedios")
-
 MASTER_VIDEO_FILE = os.path.join(BASE_DIR, "master_video_ids.csv")
 
-# Ensure only safe folder exists (NOT old_vedios)
-os.makedirs(BASE_DIR, exist_ok=True)
+# NEW FOLDER FOR OUTPUT FILES
+NEW_VIDEO_FOLDER = os.path.join(BASE_DIR, "new_vedio")
+os.makedirs(NEW_VIDEO_FOLDER, exist_ok=True)
 
 # ===========================================
-
 
 # ---------- SAFE REQUEST ----------
 def safe_request(url, params, retries=3):
@@ -43,7 +41,6 @@ def safe_request(url, params, retries=3):
             time.sleep(1.5 * (attempt + 1))
     return {}
 
-
 # ---------- TIME ----------
 def convert_to_ist(utc_time_str):
     if not utc_time_str:
@@ -52,21 +49,16 @@ def convert_to_ist(utc_time_str):
     utc_dt = utc_dt.replace(tzinfo=timezone.utc)
     return utc_dt.astimezone(IST).strftime("%Y-%m-%d %I:%M:%S %p")
 
-
-# ✅ FIXED: SAVE IN GITHUB ROOT (NOT old_data)
 def generate_filename():
     ts = datetime.now(IST).strftime("%Y-%m-%d_%I-%M-%S_%p")
-    return os.path.join(BASE_DIR, f"youtube_data_{ts}.csv")
-
+    return os.path.join(NEW_VIDEO_FOLDER, f"youtube_data_{ts}.csv")
 
 def get_published_after(hours_back):
     return (datetime.now(timezone.utc) - timedelta(hours=hours_back)).isoformat()
 
-
 # ---------- MASTER ----------
 def load_master():
     data = {}
-
     if not os.path.exists(MASTER_VIDEO_FILE):
         return data
 
@@ -76,9 +68,7 @@ def load_master():
             vid = row.get("videoId")
             if vid:
                 data[vid.strip()] = row.get("last_fetched_time", "")
-
     return data
-
 
 def save_master(data):
     temp_file = MASTER_VIDEO_FILE + ".tmp"
@@ -92,28 +82,30 @@ def save_master(data):
 
     os.replace(temp_file, MASTER_VIDEO_FILE)
 
-
 def update_master(existing_data, new_ids):
     for vid in new_ids:
-        if vid:
-            existing_data[vid] = "NOW"
+        existing_data[vid] = "NOW"
     save_master(existing_data)
 
+# ---------- FAIR SEARCH (NO DUPLICATES + BALANCED) ----------
+def search_videos_fair(published_after, queries, max_total):
+    seen = set()
+    results = []
 
-# ---------- SEARCH ----------
-def search_videos(published_after, queries):
-    video_ids = set()
+    next_tokens = {q: None for q in queries}
+    finished = set()
 
     def is_valid_video_id(vid):
         return isinstance(vid, str) and len(vid) == 11
 
-    for q in queries:
-        next_page_token = None
-        start_time = time.time()
+    while len(results) < max_total and len(finished) < len(queries):
 
-        while True:
-            if time.time() - start_time > 15:
+        for q in queries:
+
+            if len(results) >= max_total:
                 break
+            if q in finished:
+                continue
 
             params = {
                 "part": "id",
@@ -122,31 +114,45 @@ def search_videos(published_after, queries):
                 "publishedAfter": published_after,
                 "maxResults": 50,
                 "q": q,
-                "pageToken": next_page_token,
+                "pageToken": next_tokens[q],
                 "videoDuration": "short",
                 "regionCode": "IN",
                 "key": API_KEY
             }
 
             res = safe_request(f"{BASE_URL}/search", params)
+            items = res.get("items", [])
 
-            for item in res.get("items", []):
+            if not items:
+                finished.add(q)
+                continue
+
+            added_this_round = 0
+
+            for item in items:
                 vid = item.get("id", {}).get("videoId")
 
-                if vid and is_valid_video_id(vid):
-                    video_ids.add(vid)
+                if not is_valid_video_id(vid):
+                    continue
 
-                    if len(video_ids) >= MAX_VIDEOS:
-                        return list(video_ids)
+                if vid in seen:
+                    continue
 
-            next_page_token = res.get("nextPageToken")
-            if not next_page_token:
-                break
+                seen.add(vid)
+                results.append(vid)
+                added_this_round += 1
 
-            time.sleep(0.1)
+                if len(results) >= max_total:
+                    break
 
-    return list(video_ids)
+            next_tokens[q] = res.get("nextPageToken")
 
+            if not res.get("nextPageToken") or added_this_round == 0:
+                finished.add(q)
+
+            time.sleep(0.05)
+
+    return results
 
 # ---------- VIDEO DETAILS ----------
 def fetch_video_details_chunk(chunk):
@@ -159,7 +165,6 @@ def fetch_video_details_chunk(chunk):
     res = safe_request(f"{BASE_URL}/videos", params)
     return res.get("items", [])
 
-
 def get_video_details(video_ids):
     all_items = []
     chunks = [video_ids[i:i+50] for i in range(0, len(video_ids), 50)]
@@ -169,7 +174,6 @@ def get_video_details(video_ids):
             all_items.extend(r)
 
     return all_items
-
 
 # ---------- CHANNEL ----------
 def fetch_channel_details(channel_ids):
@@ -192,7 +196,6 @@ def fetch_channel_details(channel_ids):
         for i in all_items
     }
 
-
 # ---------- DURATION ----------
 def parse_duration_safe(d):
     try:
@@ -203,7 +206,6 @@ def parse_duration_safe(d):
     except:
         return None
 
-
 # ---------- PROCESS ----------
 def prepare_results(video_items, channel_map):
     results = []
@@ -213,7 +215,7 @@ def prepare_results(video_items, channel_map):
         st = item.get("statistics", {})
 
         vid = item.get("id")
-        if not vid or len(vid) != 11:
+        if not vid:
             continue
 
         duration = parse_duration_safe(item.get("contentDetails", {}).get("duration"))
@@ -239,7 +241,6 @@ def prepare_results(video_items, channel_map):
 
     return results
 
-
 # ---------- SAVE ----------
 def save_to_csv(data, filename):
     if not data:
@@ -253,13 +254,17 @@ def save_to_csv(data, filename):
 
     print(f"📁 Saved: {filename}")
 
-
 # ---------- RUN ----------
 def run_scraper():
     print("\n==============================")
     print("⏳ RUNNING:", datetime.now(IST).strftime("%Y-%m-%d %I:%M:%S %p"))
 
-    video_ids = search_videos(get_published_after(HOURS_BACK), SEARCH_QUERIES)
+    video_ids = search_videos_fair(
+        get_published_after(HOURS_BACK),
+        SEARCH_QUERIES,
+        MAX_VIDEOS
+    )
+
     print(f"📥 Video IDs: {len(video_ids)}")
 
     video_items = get_video_details(video_ids)
@@ -276,7 +281,6 @@ def run_scraper():
     results = prepare_results(video_items, channel_map)
     print(f"✅ Final videos: {len(results)}")
 
-    # SAVE IN GITHUB ROOT
     save_to_csv(results, generate_filename())
 
     master = load_master()
@@ -284,7 +288,6 @@ def run_scraper():
     update_master(master, new_ids)
 
     print("🚀 DONE")
-
 
 # ---------- ENTRY ----------
 if __name__ == "__main__":
