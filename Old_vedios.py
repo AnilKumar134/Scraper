@@ -4,6 +4,7 @@ from datetime import datetime
 import time
 import os
 import pytz
+import re
 
 # ==========================
 # CONFIG
@@ -39,10 +40,29 @@ def generate_filename():
 
 
 # ==========================
-# VALIDATION
+# CLEAN VIDEO ID (🔥 FIX HERE)
+# ==========================
+def clean_video_id(raw_id):
+    if not raw_id:
+        return ""
+
+    vid = raw_id.strip()
+
+    # Remove Excel formula prefix "="
+    if vid.startswith("="):
+        vid = vid.lstrip("=")
+
+    # Remove quotes Excel might add
+    vid = vid.strip('"').strip("'")
+
+    return vid
+
+
+# ==========================
+# VALIDATION (STRONG)
 # ==========================
 def is_valid_video_id(vid):
-    return vid and vid.upper() != "#NAME?" and len(vid) == 11
+    return bool(re.match(r"^[A-Za-z0-9_-]{11}$", vid))
 
 
 # ==========================
@@ -55,13 +75,18 @@ def load_master():
 
     clean_rows = []
     removed_count = 0
+    fixed_count = 0
 
     with open(MASTER_FILE, "r", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
         print("📌 CSV Columns:", reader.fieldnames)
 
         for row in reader:
-            vid = (row.get("videoId") or "").strip()
+            raw_vid = row.get("videoId") or ""
+            vid = clean_video_id(raw_vid)
+
+            if raw_vid != vid:
+                fixed_count += 1
 
             if not is_valid_video_id(vid):
                 removed_count += 1
@@ -74,12 +99,14 @@ def load_master():
 
     save_master(clean_rows)
 
-    print(f"🧹 Removed {removed_count} invalid rows")
+    print(f"🧹 Removed invalid rows: {removed_count}")
+    print(f"🛠 Fixed Excel-corrupted IDs: {fixed_count}")
+
     return clean_rows
 
 
 # ==========================
-# SAVE MASTER CSV
+# SAVE MASTER CSV (SAFE WRITE)
 # ==========================
 def save_master(rows):
     temp_file = MASTER_FILE + ".tmp"
