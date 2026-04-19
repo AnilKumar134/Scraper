@@ -23,13 +23,13 @@ jobs:
       - name: Install requirements
         run: pip install -r requirements.txt
 
-      - name: Run New Videos Script
-        env:
-          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-        run: python New_vedios.py
+      # - name: Run New Videos Script
+      #  env:
+      #    YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+      #  run: python New_vedios.py
 
-      - name: Wait
-        run: sleep 10
+      # - name: Wait
+      #  run: sleep 10
 
       - name: Run Old Videos Script
         env:
